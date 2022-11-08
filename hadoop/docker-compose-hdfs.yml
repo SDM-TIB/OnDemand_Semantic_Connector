@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  spark-livy:
+    image: fmoghaddam/sansaspark:v2
+    environment:
+      - SPARK_MODE=master
+      - SPARK_DEPLOY_MODE=cluter
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no    
+    ports:
+      - 8080:8080
+    networks:
+      - spark-net
+    deploy:
+      restart_policy:
+        condition: any
+
+  hue:
+    hostname: hue
+    image: fmoghaddam/sansahue:v1
+    ports:
+      - 8088:8088
+    environment:
+      - NAMENODE_HOST=namenode
+      - SPARK_MASTER=spark://spark-livy:7077 
+    depends_on:
+      - namenode
+    networks:
+      - spark-net
+    deploy:
+      restart_policy:
+        condition: any
+
+  namenode:
+    image: fmoghaddam/sansanamenode:v1
+    hostname: namenode
+    ports:
+      - 8020:8020
+    environment:
+      - CLUSTER_NAME=test
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:8020
+      - CORE_CONF_hadoop_http_staticuser_user=root
+      - CORE_CONF_hadoop_proxyuser_hue_hosts=*
+      - CORE_CONF_hadoop_proxyuser_hue_groups=*
+      - HDFS_CONF_dfs_webhdfs_enabled=true
+      - HDFS_CONF_dfs_permissions_enabled=false
+      - HDFS_CONF_dfs_namenode_datanode_registration_ip___hostname___check=false
+    healthcheck:
+      interval: 5s
+      retries: 100
+      start_period: 10s
+    volumes:
+      - ./data/namenode:/hadoop/dfs/name
+    networks:
+      - spark-net
+    deploy:
+      restart_policy:
+        condition: any
+
+  datanode:
+    image: fmoghaddam/sansadatanode:v1
+    hostname: datanode
+    volumes:
+      - ./data/datanode:/hadoop/dfs/data
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:8020
+    depends_on:
+      - namenode
+    healthcheck:
+      interval: 5s
+      retries: 100
+      start_period: 10s
+    networks:
+      - spark-net
+    deploy:
+      restart_policy:
+        condition: any
+
+networks:
+  spark-net:
